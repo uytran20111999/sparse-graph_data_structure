@@ -1,4 +1,5 @@
 import numpy as np
+import graphviz
 
 class CSR:
     def __init__(self, dense_matrix = np.array([]), value_dtype = int):
@@ -88,14 +89,14 @@ class my_graph:
     def __init__(self, nodes_value, nodes_matrix):
         self.idx_to_value = np.array(nodes_value)
         self.sparse_edges = CSR(nodes_matrix)
-        self.edges = my_graph.first_time_get_edges(self)
+        self.edges, self.orig_edge = my_graph.first_time_get_edges(self)
 
     @classmethod
     def init_from_csr_value(cls, csr, values):
         sub_graph = my_graph([], np.array([]))
         sub_graph.idx_to_value = values.copy()
         sub_graph.sparse_edges = csr
-        sub_graph.edges = my_graph.first_time_get_edges(sub_graph)
+        sub_graph.edges, sub_graph.orig_edge = my_graph.first_time_get_edges(sub_graph)
         return sub_graph
 
     def update_edges_information(self, nodes_matrix):
@@ -168,15 +169,27 @@ class my_graph:
     @classmethod
     def first_time_get_edges(cls, instance):
         ret = []
+        orig_edge = []
         value = instance.idx_to_value
         for i in range(len(instance.idx_to_value)):
             neighbor, _ = instance.sparse_edges.get_neightbor(i)
             ret.extend([(value[i], value[j]) for j in neighbor if (value[i], value[j]) not in ret])
-        return ret
+            orig_edge.extend([(i, j.item()) for j in neighbor if (i, j) not in orig_edge])
+        return ret, orig_edge
 
     def get_edges(self):
         return self.edges
 
+    def draw_graph(self, graph_name = "my graph"):
+        dot = graphviz.Digraph(name = graph_name)
+        for i, virtex_value in enumerate(self.idx_to_value):
+           dot.node(str(i), f"Index = {i} \n Value = {virtex_value}")
+        for edge in self.orig_edge:
+            end_1, end_2 = edge
+            dot.edge(str(end_1), str(end_2), \
+                    label = str(self.sparse_edges[end_1, end_2].item()))
+        return dot
+            
 
 if __name__ == "__main__":
     A = np.array([
@@ -188,9 +201,12 @@ if __name__ == "__main__":
          [0, 0, 1, 0, 1, 0]])
     value = [0, 1, 2, 3, 4, 5]
     tmp = my_graph(value, A)
-    tmp2 = tmp.get_induced_subgraph([0, 5, 3 ,2])
+    tmp2 = tmp.get_induced_subgraph([1, 5, 3 , 4])
     print(tmp2.sparse_edges.dense_reconstruction())
     print(tmp2.get_edges())
+    print(tmp2)
+    graphviz_obj = tmp.draw_graph()
+    graphviz_obj.render('/mnt/d/graph_viz_test/abc.gv')
     # print(tmp.get_induced_subgraph([1]))
     #print(tmp.get_edges())
     # _, edge_order = tmp.DFS_traverse(0)
