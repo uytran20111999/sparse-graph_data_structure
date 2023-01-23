@@ -224,10 +224,16 @@ class my_graph:
         ret = []
         orig_edge = []
         value = instance.idx_to_value
+        hash_dict = {}
         for i in range(len(instance.idx_to_value)):
             neighbor, _ = instance.sparse_edges.get_neightbor(i)
-            ret.extend([(value[i], value[j]) for j in neighbor if (value[i], value[j]) not in ret])
-            orig_edge.extend([(i, j.item()) for j in neighbor if (i, j) not in orig_edge])
+            for j in neighbor:
+                try:
+                    hash_dict[(i,j)]==1
+                except:
+                    ret.append((value[i], value[j]))
+                    orig_edge.append((i, j.item()))
+                    hash_dict[(i,j)] = 1
         return ret, orig_edge
 
     def get_edges(self):
