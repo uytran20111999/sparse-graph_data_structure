@@ -1,20 +1,25 @@
 from graph_obj import my_graph
 
+
 def demo_construct(is_lazy, file_name):
     tmp = my_graph.init_from_file(file_name, is_lazy)
-    tmp.draw_graph(format = 'png')
+    tmp.draw_graph(format='png')
     return tmp
+
 
 def demo_list_edges(input_graph):
     return input_graph.get_edges()
 
+
 def demo_DFS_edges(input_graph, beg_idx):
     return input_graph.DFS_traverse(beg_idx)
 
+
 def demo_induce_sub_graph(input_graph, list_idx):
     tmp = input_graph.get_induced_subgraph(list_idx)
-    tmp.draw_graph(format = 'png')
+    tmp.draw_graph(format='png')
     return tmp
+
 
 if __name__ == "__main__":
     f_g = demo_construct(False, "./demo_graph/first_graph.txt")
