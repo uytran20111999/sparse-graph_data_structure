@@ -1,5 +1,8 @@
 import numpy as np
 import graphviz
+from matplotlib import pyplot as plt
+import os
+from my_util import preprocess_line
 
 class CSR:
     def __init__(self, dense_matrix = np.array([]), value_dtype = int):
@@ -85,11 +88,17 @@ class CSR:
         return self.cols[traverse_jump:traverse_jump + num_nnz_at_row], \
                 self.value[traverse_jump:traverse_jump + num_nnz_at_row]
 
+    def check_full_graph(self):
+        return self.orig_cols_len == self.orig_rows_len
+
 class my_graph:
-    def __init__(self, nodes_value, nodes_matrix):
+    def __init__(self, nodes_value, nodes_matrix, is_lazy = False):
         self.idx_to_value = np.array(nodes_value)
         self.sparse_edges = CSR(nodes_matrix)
-        self.edges, self.orig_edge = my_graph.first_time_get_edges(self)
+        if not is_lazy:
+            self.edges, self.orig_edge = my_graph.first_time_get_edges(self)
+        else:
+            self.edges, self.orig_edge = [], []
 
     @classmethod
     def init_from_csr_value(cls, csr, values):
@@ -99,8 +108,49 @@ class my_graph:
         sub_graph.edges, sub_graph.orig_edge = my_graph.first_time_get_edges(sub_graph)
         return sub_graph
 
+    @classmethod
+    def init_from_file(cls, file_path, is_lazy = False):
+        with open(file_path, "r") as f:
+            #first line is node type (any things that python support)
+            #second line is edge type (float, int)
+            #third line is node value
+            #the rest is matrix
+            support_type_node = {'int': int, 'float': float, 'string': str}
+            support_type_edge = {'int': int, 'float': float}
+            first_line = f.readline().strip('\n')
+            assert first_line in support_type_node,\
+                    f"Add your type and its constructor in support_type var."
+            second_line = f.readline().strip('\n')
+            assert second_line in support_type_edge,\
+                    f"Edge weight only support in or float"
+            node_values = preprocess_line(f.readline().strip('\n'), support_type_node[first_line])
+            if not is_lazy:
+                ans = []
+                myline = f.readline().strip('\n')
+                ans.append(preprocess_line(myline, support_type_edge[second_line]))
+                while myline:
+                    myline = f.readline().strip('\n')
+                    if not myline: break
+                    ans.append(preprocess_line(myline, support_type_edge[second_line]))
+                return my_graph(node_values, 
+                        np.array(ans,dtype = support_type_edge[second_line]))
+            else:
+                myline = f.readline().strip('\n')
+                prep_line = preprocess_line(myline, support_type_edge[second_line])
+                ret_graph = my_graph(node_values, np.array([prep_line]), is_lazy)
+                while myline:
+                    myline = f.readline().strip('\n')
+                    if not myline: break
+                    ret_graph.update_edges_information(
+                                        np.array([preprocess_line(myline, 
+                                        support_type_edge[second_line])]))
+                return ret_graph
+
     def update_edges_information(self, nodes_matrix):
+        #to do, finish lazy loading
         self.sparse_edges.update_matrix(nodes_matrix)
+        if self.sparse_edges.check_full_graph(): # the get edges algor is costly, so it is best to run once.
+            self.edges, self.orig_edge = my_graph.first_time_get_edges(self)
 
     def get_child(self, node_idx):
         return self.sparse_edges.get_neightbor(node_idx)
@@ -155,6 +205,9 @@ class my_graph:
             next_nodes.extend(non_visit_neighbor)
             visited_nodes.extend(non_visit_neighbor)
         return traverse_order, edge_orders
+    
+    def get_values_from_idx(self, node_idx_list):
+        return [self.idx_to_value[i] for i in node_idx_list]
 
     def get_induced_subgraph_from_traverse(self, begin_node_idx, mode = "BFS"):
         assert mode in ["DFS", "BFS"], \
@@ -180,7 +233,7 @@ class my_graph:
     def get_edges(self):
         return self.edges
 
-    def draw_graph(self, graph_name = "my graph"):
+    def draw_graph(self, graph_name = "my_graph", render_path = "./graph_viz_render/", **kwargs):
         dot = graphviz.Digraph(name = graph_name)
         for i, virtex_value in enumerate(self.idx_to_value):
            dot.node(str(i), f"Index = {i} \n Value = {virtex_value}")
@@ -188,7 +241,14 @@ class my_graph:
             end_1, end_2 = edge
             dot.edge(str(end_1), str(end_2), \
                     label = str(self.sparse_edges[end_1, end_2].item()))
-        return dot
+        dot.render(os.path.join(render_path, graph_name), **kwargs)
+        if 'format' in kwargs:
+            format = kwargs['format']
+            if format in ['png', 'jpeg']:
+                img = plt.imread(os.path.join(render_path, graph_name) + f'.{format}')
+                plt.imshow(img)
+                plt.axis("off")
+                plt.show()
             
 
 if __name__ == "__main__":
@@ -201,44 +261,10 @@ if __name__ == "__main__":
          [0, 0, 1, 0, 1, 0]])
     value = [0, 1, 2, 3, 4, 5]
     tmp = my_graph(value, A)
-    tmp2 = tmp.get_induced_subgraph([1, 5, 3 , 4])
+    tmp2 = tmp.get_induced_subgraph([1, 2 , 5])
     print(tmp2.sparse_edges.dense_reconstruction())
     print(tmp2.get_edges())
     print(tmp2)
-    graphviz_obj = tmp.draw_graph()
-    graphviz_obj.render('/mnt/d/graph_viz_test/abc.gv')
-    # print(tmp.get_induced_subgraph([1]))
-    #print(tmp.get_edges())
-    # _, edge_order = tmp.DFS_traverse(0)
-    # print(edge_order)
-    # for i in range(5):
-    #     _, edge_order = tmp.BFS_traverse(i)
-    #     print(edge_order)
-    # print(type(A))
-    # tmp = CSR(np.array([]))
-
-    # for i in range(0, 4):
-    #     tmp.update_matrix(A[i][None, :])
-
-    # print(tmp.dense_reconstruction())
-
-    # tmp2 = CSR.from_instance_subrow(tmp, np.array([1,0,2, 3]))
-
-    # print(tmp2.dense_reconstruction())
-
-    # for i in range(4):
-    #     for j in range(4):
-    #         print(tmp[i,j], end = " ")
-    #     print()
-    # print(tmp.value)
-    # print(tmp.cols)
-    # print(tmp.rows_cur)
-    # print(A.shape)
-    # B = Test()
-    # print(B[0,1])
-    # # print(np.sum(A!=0))
-    # # print(A[A!=0])
-    # # R,C = np.nonzero(A)
-    # # print(np.cumsum([0]+list(Counter(R).values())))
+    graphviz_obj = tmp2.draw_graph(format = "png")
         
         
