@@ -1,4 +1,5 @@
 digraph my_graph {
+	graph [rankdir=LR]
 	0 [label="Index = 0 
  Value = 0"]
 	1 [label="Index = 1 
